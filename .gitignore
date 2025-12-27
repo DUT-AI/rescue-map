@@ -26,3 +26,7 @@ env/
 migrations/
 data/
 .pytest_cache/
+
+
+alembic/
+alembic.init
