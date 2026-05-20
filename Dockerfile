@@ -1,36 +1,58 @@
+# Stage 1: Builder
+FROM python:3.12-slim AS builder
+
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app/
+
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /uvx /bin/
+
+# Compile bytecode
+ENV UV_COMPILE_BYTECODE=1
+
+# uv Cache
+ENV UV_LINK_MODE=copy
+
+# Install dependencies
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
+
+# Copy source code
+COPY ./app /app/app
+COPY ./main.py /app/main.py
+
+# Sync the project
+RUN uv sync --frozen
+
+# -------------------------------------------
+# Stage 2: Final slim image
 FROM python:3.12-slim
 
-# Prevent Python from writing .pyc files and enable unbuffered stdout/stderr
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+# Install PostgreSQL client library (required by psycopg)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Install system dependencies (if needed later, uncomment and add packages)
-# RUN apt-get update && apt-get install -y --no-install-recommends \
-#     build-essential \
-#  && rm -rf /var/lib/apt/lists/*
+WORKDIR /app/
 
-# Install Python dependencies from pyproject.toml
-COPY pyproject.toml /app/pyproject.toml
-RUN python - <<'PY'
-try:
-    import tomllib  # Python >=3.11
-except ModuleNotFoundError:
-    import tomli as tomllib  # Fallback for older Pythons
-from pathlib import Path
-with open('pyproject.toml','rb') as f:
-    data = tomllib.load(f)
-deps = data.get('project', {}).get('dependencies', [])
-Path('requirements.gen.txt').write_text('\n'.join(deps))
-PY
-RUN pip install --no-cache-dir -r requirements.gen.txt
+# Copy only what we need from the builder
+COPY --from=builder /app/.venv /app/.venv
+COPY --from=builder /app/app /app/app
+COPY --from=builder /app/main.py /app/main.py
 
-# Copy application code
-COPY . /app
+# Copy alembic for migrations
+COPY ./alembic.ini /app/alembic.ini
+COPY ./alembic /app/alembic
 
-EXPOSE 8090
+# Copy scripts (optional)
+COPY ./scripts /app/scripts
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8090"]
+EXPOSE 8091
 
-
+# Use uvicorn to serve the app with multiple workers
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8091", "--workers", "4"]

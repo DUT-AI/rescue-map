@@ -1,36 +1,80 @@
 from sqlalchemy.orm import Session
-from app.models.rescue_request import RescueRequest
-from app.schemas.rescue_request import RescueRequestCreate, RescueRequestUpdate
+from app.repositories.rescue_request_repository import RescueRequestRepository
+from app.schemas.rescue_request_schema import RescueRequestCreate, RescueRequestUpdate
+from typing import Optional
 
 class RescueRequestService:
+    def __init__(self):
+        self.repository = RescueRequestRepository()
+
     @staticmethod
-    def get_all(db: Session):
-        return db.query(RescueRequest).all()
+    def convert_location_to_geom(location_data):
+        return RescueRequestRepository.convert_location_to_geom(location_data)
+
     @staticmethod
-    def get_by_id(db: Session, id: int):
-        return db.query(RescueRequest).filter(RescueRequest.id == id).first()
+    def get_all(
+        db: Session,
+        skip: int = 0,
+        limit: int = 100,
+        status: Optional[str] = None,
+        category_id: Optional[int] = None,
+        region_id: Optional[int] = None,
+        sort_by: str = "created_date",
+        order: str = "desc"
+    ):
+        return RescueRequestRepository.get_all(
+            db,
+            skip,
+            limit,
+            status,
+            category_id,
+            region_id,
+            sort_by,
+            order
+        )
+
     @staticmethod
-    def create(db: Session, data: RescueRequest):   
-        new = RescueRequest(**data.model_dump())
-        db.add(new)
-        db.commit()
-        db.refresh(new)
-        return new
+    def get_by_id(db: Session, request_id: int):
+        return RescueRequestRepository.get_by_id(db, request_id)
+
     @staticmethod
-    def update(db: Session, id: int, data: RescueRequestUpdate):
-        item = db.query(RescueRequest).filter(RescueRequest.id == id).first()
-        if not item:
-            return None
-        for key, value in data.model_dump().items():
-            setattr(item, key, value)
-        db.commit()
-        db.refresh(item)
-        return item
+    def create(db: Session, data: RescueRequestCreate):
+        return RescueRequestRepository.create(db, data)
+
     @staticmethod
-    def delete(db: Session, id: int):
-        item = db.query(RescueRequest).filter(RescueRequest.id == id).first()
-        if not item:
-            return None
-        db.delete(item)
-        db.commit()
-        return item
+    def update(db: Session, request_id: int, data: RescueRequestUpdate):
+        return RescueRequestRepository.update(db, request_id, data)
+
+    @staticmethod
+    def delete(db: Session, request_id: int):
+        return RescueRequestRepository.delete(db, request_id)
+
+    @staticmethod
+    def get_nearby(
+        db: Session,
+        longitude: float,
+        latitude: float,
+        radius_meters: float = 1000.0
+    ):
+        return RescueRequestRepository.get_nearby(
+            db,
+            longitude,
+            latitude,
+            radius_meters
+        )
+
+    @staticmethod
+    def get_by_region(
+        db: Session,
+        region_id: int,
+        skip: int = 0,
+        limit: int = 100
+    ):
+        return RescueRequestRepository.get_by_region(
+            db,
+            region_id,
+            skip,
+            limit
+        )
+
+    

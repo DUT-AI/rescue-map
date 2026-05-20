@@ -24,9 +24,5 @@ env/
 
 # Migrations
 migrations/
-data/
+data/postgres
 .pytest_cache/
-
-
-alembic/
-alembic.init
